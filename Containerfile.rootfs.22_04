@@ -42,7 +42,7 @@ RUN apt install -y \
         libssl1.1 && \
         apt install -y wget cpio busybox && \
         wget http://launchpadlibrarian.net/354032550/libffi6_3.2.1-8_arm64.deb && \
-        dpkg -i libffi6_3.2.1-8_arm64.deb
+        dpkg -i libffi6_3.2.1-8_arm64.deb        
 
 
 # Additional tools
@@ -79,8 +79,59 @@ RUN apt install -y \
         e2fsprogs \
         mtd-utils \
         python-is-python3 \
-        git
+        git \
+        nano \
+        apt-utils
 
+RUN wget -qO - 'https://proget.makedeb.org/debian-feeds/prebuilt-mpr.pub' | gpg --dearmor | sudo tee /usr/share/keyrings/prebuilt-mpr-archive-keyring.gpg 1> /dev/null && \
+    echo "deb [arch=all,$(dpkg --print-architecture) signed-by=/usr/share/keyrings/prebuilt-mpr-archive-keyring.gpg] https://proget.makedeb.org prebuilt-mpr $(lsb_release -cs)" | sudo tee /etc/apt/sources.list.d/prebuilt-mpr.list && \
+    apt update
+
+RUN apt install -y \
+    ca-certificates \
+    curl
+
+RUN echo "# TEMP ADDED FOR INSTALLATION\n\
+    deb http://ports.ubuntu.com/ubuntu-ports/ focal main universe" >> /etc/apt/sources.list && \
+    apt update && \
+    apt install -y gcc-8 g++-8 && \
+    sed -i 's/^deb http:\/\/ports.ubuntu.com\/ubuntu-ports\/ focal main universe/# &/' /etc/apt/sources.list && \
+    apt update && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc && \
+    chmod a+r /etc/apt/keyrings/docker.asc && \
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt update
+
+RUN apt install -y docker-ce=5:27.5.1-1~ubuntu.22.04~jammy  \
+    docker-ce-cli=5:27.5.1-1~ubuntu.22.04~jammy \
+    docker-compose-plugin=2.32.4-1~ubuntu.22.04~jammy \
+    docker-buildx-plugin=0.20.0-1~ubuntu.22.04~jammy \
+    docker-ce-rootless-extras=5:27.5.1-1~ubuntu.22.04~jammy
+
+# Docker won't work if we accidentaly upgrade it later so it must be kept at the versions specified
+RUN apt-mark hold docker*
+
+RUN update-alternatives --set iptables /usr/sbin/iptables-legacy && \
+    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+
+RUN mkdir -p /etc/docker && \
+    echo '{ \
+      "runtimes": { \
+        "nvidia": { \
+          "path": "nvidia-container-runtime", \
+          "runtimeArgs": [] \
+        } \
+      }, \
+      "default-runtime": "nvidia" \
+    }' > /etc/docker/daemon.json
+
+    
 RUN wget -q https://github.com/pythops/tegratop/releases/latest/download/tegratop-linux-arm64 -O /usr/local/bin/tegratop && \
     chmod +x /usr/local/bin/tegratop
 
@@ -98,15 +149,13 @@ COPY config/netcfg.yaml /etc/netplan/netcfg.yaml
 RUN systemctl enable resizerootfs.service && \
     systemctl enable systemd-timesyncd
 
-# New user
-# username: jetson
-# password: jetson
+# Create the user using the build arguments
 RUN useradd \
-        --create-home \
-        -G sudo,video,audio \
-        -p $(openssl passwd -6 jetson) \
-        -s /bin/bash \
-        jetson
+    --create-home \
+    -G sudo,video,audio \
+    -p $(openssl passwd -6 jetson) \
+    -s /bin/bash jetson
+
 
 # Add /usr/local/cuda/bin to the PATH
 RUN echo "if [ -d \"/usr/local/cuda/bin\" ] ; then" >> /home/jetson/.profile  && \

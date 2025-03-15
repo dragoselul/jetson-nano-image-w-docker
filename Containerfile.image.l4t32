@@ -3,7 +3,7 @@ FROM ubuntu:jammy
 LABEL org.opencontainers.image.authors="Badr @pythops"
 
 # Define the BSP version
-ARG BSP=https://developer.nvidia.com/downloads/embedded/l4t/r32_release_v7.5/t210/jetson-210_linux_r32.7.5_aarch64.tbz2
+ARG BSP=https://developer.nvidia.com/downloads/embedded/l4t/r32_release_v7.6/t210/jetson-210_linux_r32.7.6_aarch64.tbz2
 
 ARG L4T_PACKAGES
 
@@ -62,6 +62,8 @@ RUN cpio -iv < ../initrd && \
     find . | cpio --create --format="newc" > ../new_initrd
 WORKDIR /tmp/pythops
 RUN gzip new_initrd && mv new_initrd.gz /build/Linux_for_Tegra/bootloader/l4t_initrd.img
+    
+RUN printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d
 
 # Copy the script to create the image
 COPY scripts/create-jetson-image.sh /usr/local/bin/
